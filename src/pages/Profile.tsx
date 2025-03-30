@@ -12,7 +12,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Gallery, Heart } from "lucide-react";
+import { Image, Heart } from "lucide-react";
 
 const Profile = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -155,7 +155,7 @@ const Profile = () => {
               value="artwork"
               className="flex-1 flex items-center justify-center gap-2"
             >
-              <Gallery size={16} />
+              <Image size={16} />
               My Artwork
             </TabsTrigger>
             <TabsTrigger

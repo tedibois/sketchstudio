@@ -1,10 +1,9 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import NavBar from "@/components/NavBar";
 import ArtCard, { ArtworkType } from "@/components/ArtCard";
-import { Paintbrush, Gallery, UserRound } from "lucide-react";
+import { Paintbrush, Image, UserRound } from "lucide-react";
 
 const Index = () => {
   const [featuredArtworks, setFeaturedArtworks] = useState<ArtworkType[]>([]);
@@ -81,7 +80,7 @@ const Index = () => {
             </Link>
             <Link to="/explore">
               <Button size="lg" variant="outline" className="gap-2">
-                <Gallery size={18} />
+                <Image size={18} />
                 Explore Artwork
               </Button>
             </Link>
@@ -104,7 +103,7 @@ const Index = () => {
             
             <div className="bg-card p-8 rounded-lg shadow-sm text-center">
               <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Gallery size={32} className="text-primary" />
+                <Image size={32} className="text-primary" />
               </div>
               <h3 className="text-xl font-semibold mb-3">Share Your Art</h3>
               <p className="text-muted-foreground">
