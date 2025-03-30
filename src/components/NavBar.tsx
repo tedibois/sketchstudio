@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,45 @@ const NavBar = () => {
           )}
         </button>
       </div>
+      
+      {/* Mobile menu */}
+      {isMenuOpen && (
+        <div className="md:hidden container mx-auto mt-2 pb-4 space-y-3 flex flex-col animate-fade-in">
+          <Link to="/explore" className="text-foreground hover:text-primary py-2 transition-colors">
+            Explore
+          </Link>
+          <Link to="/create" className="text-foreground hover:text-primary py-2 transition-colors">
+            Create
+          </Link>
+          
+          {isAuthenticated ? (
+            <>
+              <Link to="/profile" className="text-foreground hover:text-primary py-2 transition-colors">
+                Profile
+              </Link>
+              <Button
+                variant="ghost"
+                onClick={logout}
+                className="justify-start px-0 text-foreground hover:text-primary"
+              >
+                Logout
+              </Button>
+            </>
+          ) : (
+            <div className="flex flex-col space-y-2 pt-2">
+              <Link to="/login">
+                <Button variant="outline" className="w-full">Login</Button>
+              </Link>
+              <Link to="/signup">
+                <Button className="w-full">Sign Up</Button>
+              </Link>
+            </div>
+          )}
+          <div className="pt-2">
+            <ModeToggle />
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
