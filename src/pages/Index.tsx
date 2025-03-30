@@ -68,7 +68,7 @@ const Index = () => {
             Create, Share, Connect
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            SketchSocial is where artists gather to create digital art, 
+            Sketchstudio is where artists gather to create digital art, 
             share their masterpieces, and connect with other artists.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
@@ -147,10 +147,11 @@ const Index = () => {
       <footer className="bg-card border-t border-border py-8">
         <div className="container text-center">
           <p className="text-muted-foreground">
-            © {new Date().getFullYear()} SketchSocial. All rights reserved.
+            © {new Date().getFullYear()} Sketchstudio. All rights reserved.
           </p>
         </div>
       </footer>
+    </main>
     </div>
   );
 };

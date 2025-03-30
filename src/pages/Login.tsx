@@ -40,7 +40,7 @@ const Login = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold">Welcome Back</h1>
             <p className="text-muted-foreground mt-2">
-              Sign in to your SketchSocial account
+              Sign in to your Sketchstudio account
             </p>
           </div>
           

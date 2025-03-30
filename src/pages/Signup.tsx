@@ -47,7 +47,7 @@ const Signup = () => {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold">Create an Account</h1>
             <p className="text-muted-foreground mt-2">
-              Join SketchSocial to start creating and sharing your art
+              Join Sketchstudio to start creating and sharing your art
             </p>
           </div>
           
