@@ -1,276 +1,464 @@
 
-import { useEffect, useRef, useState } from "react";
-import { Canvas, IEvent, PencilBrush, StaticCanvas } from "fabric";
+import React, { useRef, useEffect, useState } from "react";
+import { Canvas, TEvent } from "fabric";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
 import {
-  Save,
+  Paintbrush,
+  Square,
+  Circle,
+  StraightLine,
+  Type,
+  Eraser,
   Trash2,
   Download,
+  Save,
   Undo,
-  Circle,
-  Square,
-  Pencil,
+  Redo,
+  ArrowLeft,
 } from "lucide-react";
 
-type DrawingCanvasProps = {
+export type DrawingCanvasProps = {
   onSave?: (dataUrl: string) => void;
-  width?: number;
-  height?: number;
+  onBack?: () => void;
+  className?: string;
+  initialImage?: string;
 };
 
-const DrawingCanvas = ({
-  onSave,
-  width = 800,
-  height = 600,
-}: DrawingCanvasProps) => {
+type Tool = "brush" | "rectangle" | "circle" | "line" | "text" | "eraser" | "select";
+
+const DrawingCanvas = ({ onSave, onBack, className, initialImage }: DrawingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [fabricCanvas, setFabricCanvas] = useState<Canvas | null>(null);
+  const fabricCanvasRef = useRef<Canvas | null>(null);
+  const [activeTool, setActiveTool] = useState<Tool>("brush");
   const [brushSize, setBrushSize] = useState(5);
-  const [brushColor, setBrushColor] = useState("#000000");
+  const [color, setColor] = useState("#000000");
   const [history, setHistory] = useState<string[]>([]);
-  const [activeToolType, setActiveToolType] = useState<
-    "brush" | "rectangle" | "circle"
-  >("brush");
-  
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [isDrawing, setIsDrawing] = useState(false);
+
   // Initialize canvas
   useEffect(() => {
     if (!canvasRef.current) return;
-    
-    const canvas = new Canvas(canvasRef.current, {
-      width,
-      height,
-      backgroundColor: "#ffffff",
-    });
 
-    canvas.freeDrawingBrush = new PencilBrush(canvas);
-    canvas.freeDrawingBrush.width = brushSize;
-    canvas.freeDrawingBrush.color = brushColor;
-    canvas.isDrawingMode = true;
+    const initCanvas = async () => {
+      try {
+        const canvas = new Canvas(canvasRef.current, {
+          width: 800,
+          height: 600,
+          backgroundColor: "#ffffff",
+          isDrawingMode: activeTool === "brush",
+        });
 
-    // Save initial state
-    const initialState = canvas.toJSON();
-    setHistory([JSON.stringify(initialState)]);
+        fabricCanvasRef.current = canvas;
 
-    // Add event listener for object modifications
-    canvas.on("object:added", () => {
-      const currentState = canvas.toJSON();
-      setHistory((prevHistory) => [
-        ...prevHistory,
-        JSON.stringify(currentState),
-      ]);
-    });
+        // Initialize brush settings
+        if (canvas.freeDrawingBrush) {
+          canvas.freeDrawingBrush.color = color;
+          canvas.freeDrawingBrush.width = brushSize;
+        }
 
-    setFabricCanvas(canvas);
+        // Load initial image if provided
+        if (initialImage) {
+          try {
+            Canvas.Image.fromURL(initialImage, (img) => {
+              canvas.add(img);
+              canvas.renderAll();
+              saveToHistory();
+            });
+          } catch (error) {
+            console.error("Error loading initial image:", error);
+          }
+        } else {
+          saveToHistory();
+        }
+
+        // Add event listeners
+        canvas.on("object:added", saveToHistory);
+        canvas.on("object:modified", saveToHistory);
+        canvas.on("object:removed", saveToHistory);
+
+        setIsDrawing(true);
+      } catch (error) {
+        console.error("Error initializing canvas:", error);
+        toast.error("Failed to initialize drawing canvas");
+      }
+    };
+
+    initCanvas();
 
     return () => {
-      canvas.dispose();
+      if (fabricCanvasRef.current) {
+        fabricCanvasRef.current.dispose();
+      }
     };
-  }, [width, height]);
+  }, []);
 
-  // Update brush size
+  // Update active tool
   useEffect(() => {
-    if (fabricCanvas && fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush.width = brushSize;
+    if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+    canvas.isDrawingMode = activeTool === "brush" || activeTool === "eraser";
+
+    if (canvas.freeDrawingBrush) {
+      if (activeTool === "eraser") {
+        canvas.freeDrawingBrush.color = "#ffffff";
+      } else {
+        canvas.freeDrawingBrush.color = color;
+      }
+      canvas.freeDrawingBrush.width = brushSize;
     }
-  }, [brushSize, fabricCanvas]);
 
-  // Update brush color
-  useEffect(() => {
-    if (fabricCanvas && fabricCanvas.freeDrawingBrush) {
-      fabricCanvas.freeDrawingBrush.color = brushColor;
+    // Set selection mode for non-drawing tools
+    if (activeTool === "select") {
+      canvas.selection = true;
     }
-  }, [brushColor, fabricCanvas]);
+  }, [activeTool, color, brushSize]);
 
-  // Handle tool type change
-  useEffect(() => {
-    if (!fabricCanvas) return;
+  const saveToHistory = () => {
+    if (!fabricCanvasRef.current) return;
 
-    switch (activeToolType) {
-      case "brush":
-        fabricCanvas.isDrawingMode = true;
-        break;
+    try {
+      const canvas = fabricCanvasRef.current;
+      const json = JSON.stringify(canvas.toJSON());
+
+      // Only save if something changed
+      if (history.length === 0 || history[historyIndex] !== json) {
+        // Remove any forward history if we're not at the end
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(json);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+      }
+    } catch (error) {
+      console.error("Error saving to history:", error);
+    }
+  };
+
+  const handleToolClick = (tool: Tool) => {
+    setActiveTool(tool);
+  };
+
+  const handleAddShape = (shape: "rectangle" | "circle" | "line" | "text") => {
+    if (!fabricCanvasRef.current) return;
+
+    const canvas = fabricCanvasRef.current;
+    let object;
+
+    switch (shape) {
       case "rectangle":
+        object = new Canvas.Rect({
+          left: 100,
+          top: 100,
+          fill: color,
+          width: 100,
+          height: 100,
+          strokeWidth: 2,
+          stroke: color,
+        });
+        break;
       case "circle":
-        fabricCanvas.isDrawingMode = false;
+        object = new Canvas.Circle({
+          left: 100,
+          top: 100,
+          fill: color,
+          radius: 50,
+          strokeWidth: 2,
+          stroke: color,
+        });
+        break;
+      case "line":
+        object = new Canvas.Line([50, 100, 150, 100], {
+          left: 100,
+          top: 100,
+          stroke: color,
+          strokeWidth: brushSize,
+        });
+        break;
+      case "text":
+        object = new Canvas.Textbox("Text", {
+          left: 100,
+          top: 100,
+          fill: color,
+          fontFamily: "Arial",
+          fontSize: 20,
+        });
         break;
     }
-  }, [activeToolType, fabricCanvas]);
 
-  // Add shape to canvas
-  const addShape = (type: "rectangle" | "circle") => {
-    if (!fabricCanvas) return;
-
-    const center = fabricCanvas.getCenter();
-    const options = {
-      left: center.left,
-      top: center.top,
-      fill: brushColor,
-      width: 100,
-      height: 100,
-      radius: 50,
-    };
-
-    if (type === "rectangle") {
-      fabricCanvas.add(new fabric.Rect(options));
-    } else if (type === "circle") {
-      fabricCanvas.add(new fabric.Circle(options));
+    if (object) {
+      canvas.add(object);
+      canvas.setActiveObject(object);
+      canvas.renderAll();
     }
-
-    fabricCanvas.renderAll();
   };
 
-  // Clear canvas
-  const clearCanvas = () => {
-    if (!fabricCanvas) return;
-    
-    fabricCanvas.clear();
-    fabricCanvas.backgroundColor = "#ffffff";
-    fabricCanvas.renderAll();
-    
-    // Save new state
-    const clearedState = fabricCanvas.toJSON();
-    setHistory([JSON.stringify(clearedState)]);
-    
-    toast("Canvas cleared!");
+  const handleClear = () => {
+    if (!fabricCanvasRef.current) return;
+
+    if (confirm("Are you sure you want to clear the canvas?")) {
+      fabricCanvasRef.current.clear();
+      fabricCanvasRef.current.backgroundColor = "#ffffff";
+      fabricCanvasRef.current.renderAll();
+      saveToHistory();
+      toast.success("Canvas cleared");
+    }
   };
 
-  // Undo last action
-  const undo = () => {
-    if (!fabricCanvas || history.length <= 1) return;
-    
-    const newHistory = [...history];
-    newHistory.pop(); // Remove current state
-    const previousState = newHistory[newHistory.length - 1];
-    
-    fabricCanvas.loadFromJSON(previousState, () => {
-      fabricCanvas.renderAll();
-      setHistory(newHistory);
-    });
-    
-    toast("Undid last action");
+  const handleDownload = () => {
+    if (!fabricCanvasRef.current) return;
+
+    try {
+      const dataUrl = fabricCanvasRef.current.toDataURL({
+        format: "png",
+        quality: 1,
+        multiplier: 1
+      });
+      const link = document.createElement("a");
+      link.download = "drawing.png";
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Image downloaded");
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      toast.error("Failed to download image");
+    }
   };
 
-  // Save canvas
-  const saveCanvas = () => {
-    if (!fabricCanvas) return;
-    
-    const dataUrl = fabricCanvas.toDataURL({
-      format: "png",
-      quality: 1,
-    });
-    
-    if (onSave) {
+  const handleSave = () => {
+    if (!fabricCanvasRef.current || !onSave) return;
+
+    try {
+      const dataUrl = fabricCanvasRef.current.toDataURL({
+        format: "png",
+        quality: 1,
+        multiplier: 1
+      });
       onSave(dataUrl);
+      toast.success("Drawing saved");
+    } catch (error) {
+      console.error("Error saving image:", error);
+      toast.error("Failed to save image");
     }
-    
-    toast.success("Drawing saved!");
   };
 
-  // Download canvas
-  const downloadCanvas = () => {
-    if (!fabricCanvas) return;
-    
-    const dataUrl = fabricCanvas.toDataURL({
-      format: "png",
-      quality: 1,
-    });
-    
-    const link = document.createElement("a");
-    link.download = `sketchsocial-drawing-${new Date().toISOString()}.png`;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast("Drawing downloaded!");
+  const handleUndo = () => {
+    if (historyIndex > 0 && fabricCanvasRef.current) {
+      try {
+        const canvas = fabricCanvasRef.current;
+        const newIndex = historyIndex - 1;
+        canvas.loadFromJSON(JSON.parse(history[newIndex]), () => {
+          canvas.renderAll();
+          setHistoryIndex(newIndex);
+        });
+      } catch (error) {
+        console.error("Error undoing:", error);
+        toast.error("Failed to undo");
+      }
+    }
   };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1 && fabricCanvasRef.current) {
+      try {
+        const canvas = fabricCanvasRef.current;
+        const newIndex = historyIndex + 1;
+        canvas.loadFromJSON(JSON.parse(history[newIndex]), () => {
+          canvas.renderAll();
+          setHistoryIndex(newIndex);
+        });
+      } catch (error) {
+        console.error("Error redoing:", error);
+        toast.error("Failed to redo");
+      }
+    }
+  };
+
+  if (!isDrawing) {
+    return (
+      <div className="flex items-center justify-center h-[600px] bg-card border rounded-lg">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">Loading drawing canvas...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-center space-y-4 max-w-full">
-      <div className="p-1 border rounded-lg shadow-md bg-background overflow-hidden max-w-full">
-        <canvas
-          ref={canvasRef}
-          className="max-w-full canvas-container touch-none border rounded"
-        />
-      </div>
-
-      <div className="flex flex-wrap gap-2 justify-center w-full">
-        <div className="flex items-center p-2 gap-2 rounded-lg border bg-card">
-          <Button
-            variant={activeToolType === "brush" ? "default" : "outline"}
-            size="icon"
-            onClick={() => setActiveToolType("brush")}
-            title="Brush"
-          >
-            <Pencil size={18} />
+    <div className={cn("flex flex-col space-y-4", className)}>
+      <div className="flex flex-wrap items-center gap-2 p-2 bg-card rounded-lg border">
+        {onBack && (
+          <Button variant="outline" size="icon" onClick={onBack} title="Back">
+            <ArrowLeft className="h-4 w-4" />
           </Button>
-          <Button
-            variant={activeToolType === "rectangle" ? "default" : "outline"}
-            size="icon"
-            onClick={() => {
-              setActiveToolType("rectangle");
-              addShape("rectangle");
-            }}
-            title="Rectangle"
+        )}
+        
+        <Button
+          variant={activeTool === "brush" ? "default" : "outline"}
+          size="icon"
+          onClick={() => handleToolClick("brush")}
+          title="Brush"
+        >
+          <Paintbrush className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "rectangle" ? "default" : "outline"}
+          size="icon"
+          onClick={() => {
+            handleToolClick("rectangle");
+            handleAddShape("rectangle");
+          }}
+          title="Rectangle"
+        >
+          <Square className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "circle" ? "default" : "outline"}
+          size="icon"
+          onClick={() => {
+            handleToolClick("circle");
+            handleAddShape("circle");
+          }}
+          title="Circle"
+        >
+          <Circle className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "line" ? "default" : "outline"}
+          size="icon"
+          onClick={() => {
+            handleToolClick("line");
+            handleAddShape("line");
+          }}
+          title="Line"
+        >
+          <StraightLine className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "text" ? "default" : "outline"}
+          size="icon"
+          onClick={() => {
+            handleToolClick("text");
+            handleAddShape("text");
+          }}
+          title="Text"
+        >
+          <Type className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "eraser" ? "default" : "outline"}
+          size="icon"
+          onClick={() => handleToolClick("eraser")}
+          title="Eraser"
+        >
+          <Eraser className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant={activeTool === "select" ? "default" : "outline"}
+          size="icon"
+          onClick={() => handleToolClick("select")}
+          title="Select"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
           >
-            <Square size={18} />
-          </Button>
-          <Button
-            variant={activeToolType === "circle" ? "default" : "outline"}
-            size="icon"
-            onClick={() => {
-              setActiveToolType("circle");
-              addShape("circle");
-            }}
-            title="Circle"
-          >
-            <Circle size={18} />
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3 p-2 rounded-lg border bg-card">
+            <path d="M12 3l4 8H8l4-8z" />
+            <path d="M12 11v10" />
+          </svg>
+        </Button>
+        
+        <div className="h-6 border-l border-border mx-1"></div>
+        
+        <div className="flex items-center gap-2">
           <input
             type="color"
-            value={brushColor}
-            onChange={(e) => setBrushColor(e.target.value)}
-            className="w-8 h-8 border-none rounded cursor-pointer"
-            title="Color picker"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer border border-border"
+            title="Color"
           />
-          <div className="flex items-center gap-2 w-48">
-            <span className="text-sm">Size:</span>
+          
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-xs text-muted-foreground">Size:</span>
             <Slider
               value={[brushSize]}
               min={1}
               max={50}
               step={1}
               onValueChange={(value) => setBrushSize(value[0])}
+              className="w-24"
             />
           </div>
         </div>
-
-        <div className="flex items-center p-2 gap-2 rounded-lg border bg-card">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={undo}
-            disabled={history.length <= 1}
-            title="Undo"
-          >
-            <Undo size={18} />
+        
+        <div className="h-6 border-l border-border mx-1"></div>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleUndo}
+          disabled={historyIndex <= 0}
+          title="Undo"
+        >
+          <Undo className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleRedo}
+          disabled={historyIndex >= history.length - 1}
+          title="Redo"
+        >
+          <Redo className="h-4 w-4" />
+        </Button>
+        
+        <div className="h-6 border-l border-border mx-1"></div>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleClear}
+          className="text-destructive hover:text-destructive"
+          title="Clear"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+        
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownload} className="gap-1">
+            <Download className="h-4 w-4" /> Download
           </Button>
-          <Button variant="outline" size="icon" onClick={clearCanvas} title="Clear">
-            <Trash2 size={18} />
-          </Button>
-          <Button variant="outline" size="icon" onClick={downloadCanvas} title="Download">
-            <Download size={18} />
-          </Button>
-          <Button onClick={saveCanvas} title="Save">
-            <Save size={18} className="mr-2" />
-            Save
-          </Button>
+          
+          {onSave && (
+            <Button size="sm" onClick={handleSave} className="gap-1">
+              <Save className="h-4 w-4" /> Save
+            </Button>
+          )}
         </div>
+      </div>
+      
+      <div className="canvas-container relative border rounded-lg overflow-hidden shadow-sm">
+        <canvas ref={canvasRef} className="w-full" />
       </div>
     </div>
   );
